@@ -1,14 +1,30 @@
+/// Named-pipe display backend.
+///
+/// Writes each 22x7 frame as a JSON object to a UNIX named pipe (FIFO).
+/// External processes (e.g. a Python e-ink script) can read from the pipe
+/// and render the frame on the actual display hardware.
+///
+/// # JSON format
+/// ```json
+/// {"type":"frame","width":22,"height":7,"lines":["+--+", ...]}
+/// {"type":"clear"}
+/// ```
+
 use std::path::PathBuf;
 use std::fs::OpenOptions;
 use std::io::Write;
 use crate::error::{AppError, AppResult};
 use crate::display::DisplayBackend;
 
+/// Named-pipe display backend.
 pub struct PipeBackend {
     pipe_path: PathBuf,
 }
 
 impl PipeBackend {
+    /// Create a new pipe backend.
+    ///
+    /// The FIFO will be created if it does not exist.
     pub fn new(pipe_path: PathBuf) -> Self {
         Self { pipe_path }
     }

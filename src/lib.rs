@@ -1,3 +1,9 @@
+/// NearField_22x7_rational_communication library crate.
+///
+/// This is the main library entry point. It re-exports all public modules
+/// and provides the top-level [`run`] function that initialises hardware,
+/// enters the polling loop, and handles shutdown.
+
 pub mod config;
 pub mod display;
 pub mod error;
@@ -17,6 +23,22 @@ use crate::nfc::Pn532;
 use crate::pipeline::shutdown::setup_signal_handler;
 use crate::storage::Database;
 
+/// How long to display a detected tag before returning to idle.
+const TAG_DISPLAY_SECONDS: u64 = 2;
+
+/// How long to wait after an error before attempting reconnection.
+const ERROR_BACKOFF_SECONDS: u64 = 2;
+
+/// Initialise all subsystems and enter the main polling loop.
+///
+/// # Pipeline
+/// 1. Load config from file/env
+/// 2. Initialise display backend
+/// 3. Open SQLite database (auto-migrate)
+/// 4. Open PN532 serial port, verify firmware, configure SAM
+/// 5. Install Ctrl-C handler
+/// 6. Loop: poll for tags -> log to DB -> render to display
+/// 7. On shutdown: clear display, print summary
 pub fn run() -> AppResult<()> {
     let config = Config::load()?;
 
@@ -35,9 +57,7 @@ pub fn run() -> AppResult<()> {
         Ok(ver) => log::info!("Firmware: {ver}"),
         Err(e) => {
             log::error!("PN532 not responding: {e}");
-            log::error!(
-                "Check wiring: PN532 TX->Pi RX (GP15), PN532 RX->Pi TX (GP14), VCC->3.3V, GND->GND"
-            );
+            log::error!("Check wiring: PN532 TX->Pi RX (GP15), PN532 RX->Pi TX (GP14), VCC->3.3V, GND->GND");
             log::error!("Enable UART: sudo raspi-config -> Interface -> Serial Port");
             return Err(e);
         }
@@ -50,7 +70,6 @@ pub fn run() -> AppResult<()> {
     let mut tap_count: u64 = 0;
 
     display.display_frame(&renderer.render_idle())?;
-
     log::info!("Entering main loop (poll every {} ms)", config.poll_interval_ms);
 
     while running.load(Ordering::SeqCst) {
@@ -68,7 +87,7 @@ pub fn run() -> AppResult<()> {
                     log::error!("Display error: {e}");
                 }
 
-                std::thread::sleep(Duration::from_secs(2));
+                std::thread::sleep(Duration::from_secs(TAG_DISPLAY_SECONDS));
 
                 if let Err(e) = display.display_frame(&renderer.render_idle()) {
                     log::error!("Display error: {e}");
@@ -79,7 +98,7 @@ pub fn run() -> AppResult<()> {
             }
             Err(e) => {
                 log::error!("Poll error: {e}");
-                std::thread::sleep(Duration::from_secs(2));
+                std::thread::sleep(Duration::from_secs(ERROR_BACKOFF_SECONDS));
                 pn532 = try_reconnect(&config);
             }
         }
@@ -94,6 +113,7 @@ pub fn run() -> AppResult<()> {
     Ok(())
 }
 
+/// Attempt to re-open the serial port and re-configure the PN532.
 fn try_reconnect(config: &Config) -> Pn532 {
     log::info!("Attempting PN532 re-initialisation...");
     match Pn532::open(&config.serial_port, config.serial_baud) {
@@ -107,7 +127,7 @@ fn try_reconnect(config: &Config) -> Pn532 {
         }
         Err(e) => {
             log::error!("Re-open failed: {e}");
-            unreachable!()
+            panic!("Cannot recover serial connection: {e}");
         }
     }
 }

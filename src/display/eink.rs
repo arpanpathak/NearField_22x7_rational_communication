@@ -1,6 +1,18 @@
+/// E-ink display backend (stub).
+///
+/// Placeholder for Waveshare SPI e-ink display support. The actual
+/// SPI driver requires `embedded-hal`, `linux-embedded-hal`, and
+/// `epd-waveshare` crates. This stub logs calls and returns `Ok`.
+///
+/// # To implement
+/// 1. Add `embedded-hal`, `linux-embedded-hal`, `epd-waveshare` to `Cargo.toml`
+/// 2. Initialise SPI via `/dev/spidev0.0`
+/// 3. Render the ASCII frame to a bitmap and call the EPD driver
+
 use crate::error::AppResult;
 use crate::display::DisplayBackend;
 
+/// E-ink display backend (stub implementation).
 pub struct EinkBackend;
 
 impl EinkBackend {
