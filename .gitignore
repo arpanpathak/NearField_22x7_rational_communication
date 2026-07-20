@@ -1,0 +1,22 @@
+# Rust build artifacts
+/target
+
+# SQLite database (created at runtime)
+*.db
+*.db-wal
+*.db-shm
+
+# User-specific config
+nearfield.toml
+
+# Named pipes (created at runtime)
+*.fifo
+
+# macOS
+.DS_Store
+
+# Editor/IDE
+.vscode/
+.idea/
+*.swp
+*.swo

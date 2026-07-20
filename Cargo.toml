@@ -1,0 +1,59 @@
+[package]
+name = "nearfield_22x7_rational_communication"
+version = "0.1.0"
+edition = "2021"
+description = "Low-power NFC tag reader & logger for Raspberry Pi Zero 2WH with PN532, SQLite storage, and e-ink display support with ASCII art"
+authors = ["Arpan Pathak"]
+license = "MIT"
+repository = "https://github.com/arpanpathak/nearfield_22x7_rational_communication"
+keywords = ["nfc", "pn532", "raspberry-pi", "e-ink", "embedded"]
+categories = ["embedded", "hardware-support", "database"]
+
+[dependencies]
+# === Serial / UART Communication ===
+serialport = "4.3"
+# UART (via /dev/ttyAMA0 or /dev/serial0) is the primary interface to PN532.
+# The crate provides a cross-platform serial port API.
+
+# === Database ===
+rusqlite = { version = "0.32", features = ["bundled"] }
+# Bundled feature compiles SQLite from source — no system dependency needed on the Pi.
+# Stores every NFC tap with timestamp, UID, tag type, and raw data.
+
+# === Time & Date ===
+chrono = { version = "0.4", features = ["serde"] }
+# Human-readable timestamps for logs and DB records.
+
+# === Serialization ===
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# JSON export for interoperability with external tools / display pipeline.
+
+# === Logging ===
+log = "0.4"
+env_logger = "0.11"
+# Structured logging to stdout + optional file rotation via RUST_LOG.
+
+# === Error Handling ===
+thiserror = "2"
+# Derive std::error::Error for custom error types with minimal boilerplate.
+
+# === TOML Parsing ===
+toml = "0.8"
+# Parse nearfield.toml configuration files.
+
+# === Signal Handling ===
+ctrlc = "3.4"
+# Graceful shutdown on Ctrl-C (SIGINT).
+
+# === Async / Sleeping ===
+# We keep it simple: synchronous polling loop. No async runtime needed for this use case.
+
+[profile.release]
+opt-level = "s"    # Optimise for size — fits better on Pi Zero's limited storage
+lto = true         # Link-time optimisation
+strip = true       # Remove debug symbols
+codegen-units = 1  # Single codegen unit for maximum optimisation
+
+[profile.dev]
+opt-level = 0      # Fast compile during development
