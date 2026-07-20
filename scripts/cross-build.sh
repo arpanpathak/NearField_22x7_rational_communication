@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 #
-# cross-build.sh — Cross-compile the NearField reader for Pi and optionally copy it over.
+# cross-build.sh — Cross-compile for Pi on macOS (no Docker needed).
 #
 # Usage:
-#   ./scripts/cross-build.sh                              # Just build
-#   ./scripts/cross-build.sh --deploy pi@raspberrypi.local  # Build + scp to Pi
+#   ./scripts/cross-build.sh                                    # Just build
+#   ./scripts/cross-build.sh --deploy pi@raspberrypi.local      # Build + scp to Pi
 #
-# Requirements:
-#   - Docker (cross builds in a containerized ARM toolchain)
-#   - cargo install cross
+# Requirements (installed automatically if missing):
+#   - brew install zig
+#   - cargo install cargo-zigbuild
 #   - rustup target add armv7-unknown-linux-gnueabihf
 
 set -euo pipefail
@@ -37,15 +37,25 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-info "Cross-compiling for $TARGET..."
-
-# Make sure cross is installed
-if ! command -v cross &>/dev/null; then
-    err "'cross' is not installed. Run: cargo install cross --git https://github.com/cross-rs/cross"
-    exit 1
+# ── Install missing deps ──────────────────────────────────────────────────
+if ! command -v zig &>/dev/null; then
+    info "Installing Zig..."
+    brew install zig
 fi
 
-cross build --release --target "$TARGET"
+if ! command -v cargo-zigbuild &>/dev/null; then
+    info "Installing cargo-zigbuild..."
+    cargo install cargo-zigbuild
+fi
+
+if ! rustup target list --installed | grep -q "$TARGET"; then
+    info "Adding Rust target $TARGET..."
+    rustup target add "$TARGET"
+fi
+
+# ── Build ─────────────────────────────────────────────────────────────────
+info "Cross-compiling for $TARGET with Zig..."
+cargo zigbuild --release --target "$TARGET"
 
 BINARY="target/$TARGET/release/$BIN_NAME"
 
@@ -59,5 +69,5 @@ ok "Binary built: $BINARY ($(du -h "$BINARY" | cut -f1))"
 if [[ -n "$DEPLOY_TARGET" ]]; then
     info "Copying to $DEPLOY_TARGET:~/nearfield ..."
     scp "$BINARY" "$DEPLOY_TARGET:~/nearfield"
-    ok "Deployed! SSH into the Pi and run: ~/nearfield --scan"
+    ok "Deployed! SSH into Pi and run: ~/nearfield --scan"
 fi
