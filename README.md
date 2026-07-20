@@ -13,6 +13,8 @@
 └────────────────────┘
 ```
 
+**Why the name?** `22/7` is a well-known rational approximation of **π (pi)** — and this project runs on a **Pi** Zero, reads **NFC** tags, and is all about **rational communication** between devices. The display grid also happens to be 22 columns × 7 rows.
+
 ## Features
 
 - **Read NFC tags** — PN532 chipset over UART (supports Mifare Classic, Ultralight, NTAG, DESFire, ISO 14443-4)
@@ -131,11 +133,3 @@ See [docs/TESTING.md](docs/TESTING.md) for full test procedures.
 ## License
 
 MIT — see [LICENSE](LICENSE).
-
-## Why "22x7"?
-
-The display renders NFC tag info in a fixed **22-column by 7-row** ASCII art
-grid — optimised for small e-ink displays (e.g. Waveshare 2.13" at 250×122 px
-with ~11 px per monospace character).
-
-> *"In the middle of difficulty lies opportunity."* — Albert Einstein
