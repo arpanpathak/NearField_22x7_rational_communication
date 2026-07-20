@@ -113,6 +113,80 @@ pub fn run() -> AppResult<()> {
     Ok(())
 }
 
+/// Run in `--scan` mode: open the PN532, poll in a loop, print tag info to stdout.
+///
+/// This mode omits the database, display backend, and config file — it's the
+/// fastest way to verify hardware is working. Hit Ctrl-C to exit.
+///
+/// # Arguments
+/// - `port_path`: serial port device path (e.g. `/dev/ttyAMA0`)
+/// - `baud_rate`: UART baud rate
+pub fn run_scan(port_path: &str, baud_rate: u32) -> AppResult<()> {
+    log::info!("Scan mode — opening {} at {} baud", port_path, baud_rate);
+
+    let mut pn532 = Pn532::open(port_path, baud_rate)?;
+
+    match pn532.get_firmware_version() {
+        Ok(ver) => {
+            let line = format!("│ PN532 Firmware: {ver:<17} │");
+            let border = "─".repeat(line.len());
+            println!("┌{border}┐");
+            println!("{line}");
+            println!("└{border}┘");
+        }
+        Err(e) => {
+            log::error!("PN532 not responding: {e}");
+            log::error!("Check wiring: PN532 TX->Pi RX (GP15), PN532 RX->Pi TX (GP14), VCC->3.3V, GND->GND");
+            log::error!("Enable UART: echo 'enable_uart=1' | sudo tee -a /boot/config.txt");
+            return Err(e);
+        }
+    }
+
+    pn532.sam_config()?;
+    let running = pipeline::shutdown::setup_signal_handler()?;
+
+    println!();
+    println!("┌─────────────────────────────────────────────────────────────────┐");
+    println!("│  Scanning for NFC tags — hold a tag near the antenna...         │");
+    println!("│  Press Ctrl-C to exit.                                          │");
+    println!("└─────────────────────────────────────────────────────────────────┘");
+    println!();
+
+    let mut tap_count: u64 = 0;
+
+    while running.load(Ordering::SeqCst) {
+        match pn532.poll() {
+            Ok(tag) => {
+                tap_count += 1;
+                let timestamp = tag.timestamp.format("%H:%M:%S%.3f");
+                let uid = &tag.uid;
+                let tag_type = &tag.tag_type;
+
+                // Nice boxed output for each tap
+                println!("  ╔══════════════════════════════════════════════════════════╗");
+                println!("  ║  [{timestamp}]  Tap #{tap_count}                         ║");
+                println!("  ║                                                        ║");
+                println!("  ║  UID:  {uid:<50} ║");
+                println!("  ║  Type: {tag_type:<48} ║");
+                println!("  ╚══════════════════════════════════════════════════════════╝");
+                println!();
+
+                log::info!("TAP uid={uid} type={tag_type}");
+            }
+            Err(AppError::NoTag) => {
+                std::thread::sleep(Duration::from_millis(500));
+            }
+            Err(e) => {
+                log::error!("Poll error: {e}");
+                std::thread::sleep(Duration::from_secs(2));
+            }
+        }
+    }
+
+    log::info!("Scan complete. Total tags read: {tap_count}");
+    Ok(())
+}
+
 /// Attempt to re-open the serial port and re-configure the PN532.
 fn try_reconnect(config: &Config) -> Pn532 {
     log::info!("Attempting PN532 re-initialisation...");
