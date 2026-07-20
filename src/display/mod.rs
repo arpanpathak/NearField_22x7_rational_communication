@@ -1,34 +1,36 @@
-//! # Display Module
-//!
-//! Renders NFC tag data as **ASCII art** on an output device.
-//!
-//! ## Architecture
-//!
-//! The [`DisplayBackend`] trait abstracts over output targets:
-//!
-//! - **`StdoutBackend`** — prints to stdout (for testing / debugging).
-//! - **`EinkBackend`** — writes to a Waveshare e-ink display via SPI.
-//! - **`PipeBackend`** — writes framed ASCII to a FIFO for external
-//!   display processors.
-//!
-//! The [`AsciiRenderer`] converts tabular and tag data into a fixed-width
-//! 22×7 ASCII grid — the "22x7" in the project name.
-//!
-//! ## Display Canon: 22 columns × 7 rows
-//!
-//! ```text
-//! ┌────────────────────┐
-//! │  NFC TAG           │  ← Title row
-//! │  UID: 7ed59290     │  ← Tag info
-//! │  Type: Mifare 1K   │
-//! │  Time: 14:32:01    │
-//! │                    │
-//! │  [TAG]             │  ← Footer / status
-//! └────────────────────┘
-//! ```
-
 pub mod ascii;
-pub mod backend;
+pub mod eink;
+pub mod noop;
+pub mod pipe;
+pub mod stdout;
 
 pub use ascii::AsciiRenderer;
-pub use backend::{DisplayBackend, backend_from_config};
+
+use std::path::PathBuf;
+use crate::error::{AppError, AppResult};
+
+pub trait DisplayBackend {
+    fn init(&mut self) -> AppResult<()>;
+    fn display_frame(&mut self, frame: &[String]) -> AppResult<()>;
+    fn clear(&mut self) -> AppResult<()>;
+}
+
+pub fn backend_from_config(
+    display_type: &str,
+    pipe_path: Option<PathBuf>,
+) -> AppResult<Box<dyn DisplayBackend>> {
+    match display_type {
+        "stdout" => Ok(Box::new(stdout::StdoutBackend::new())),
+        "eink" => Ok(Box::new(eink::EinkBackend::new())),
+        "pipe" => {
+            let path = pipe_path
+                .ok_or_else(|| AppError::Config("pipe backend requires display_pipe path".into()))?;
+            Ok(Box::new(pipe::PipeBackend::new(path)))
+        }
+        "none" => Ok(Box::new(noop::NoopBackend)),
+        other => Err(AppError::Config(format!(
+            "Unknown display type '{}'. Expected: stdout, eink, pipe, or none",
+            other
+        ))),
+    }
+}
